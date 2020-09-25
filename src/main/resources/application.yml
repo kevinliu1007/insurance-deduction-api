@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: insurance-deduction-api
+
+server:
+  port: 5000
