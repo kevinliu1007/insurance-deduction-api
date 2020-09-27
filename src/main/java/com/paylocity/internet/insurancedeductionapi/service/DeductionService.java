@@ -1,11 +1,10 @@
 package com.paylocity.internet.insurancedeductionapi.service;
 
-import com.paylocity.internet.insurancedeductionapi.model.DeductionRequest;
-import com.paylocity.internet.insurancedeductionapi.model.DeductionResponse;
-import com.paylocity.internet.insurancedeductionapi.model.DependentDeduction;
-import com.paylocity.internet.insurancedeductionapi.model.EmployeeDeduction;
+import com.paylocity.internet.insurancedeductionapi.model.*;
+import com.paylocity.internet.insurancedeductionapi.repository.PayDataRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,17 +14,47 @@ import java.util.List;
 @Service
 public class DeductionService {
 
-    private static double COMPENSATION_PER_PAYCHECK = 2000.0;
+    @Autowired
+    PayDataRepository payDataRepository;
 
-    private static double EMPLOYEE_YEARLY_CHARGE = 1000.0;
+    private Double compensationPerPaycheck;
 
-    private static double DEPENDENT_YEARLY_CHARGE = 500.0;
+    private Double employeeYearlyCharge;
 
-    private static double DISCOUNT_PERCENTAGE = 0.1;
+    private Double dependentYearlyCharge;
 
-    private static int PAYCHECKS_PER_YEAR = 26;
+    private Double discountPercentage;
+
+    private Integer paychecksPerYear;
 
     private Logger logger = LoggerFactory.getLogger(DeductionService.class);
+
+    private void setUpData() {
+        if (compensationPerPaycheck == null || compensationPerPaycheck.isNaN()) {
+           compensationPerPaycheck = payDataRepository.findByPayData("paycheck_amount").get(0).getValue();
+           logger.info("Query for paycheck amount data.");
+        }
+
+        if (employeeYearlyCharge == null || employeeYearlyCharge.isNaN()) {
+            employeeYearlyCharge = payDataRepository.findByPayData("employee_yearly_charge").get(0).getValue();
+            logger.info("Query for employee yearly charge data.");
+        }
+
+        if (dependentYearlyCharge == null || dependentYearlyCharge.isNaN()) {
+            dependentYearlyCharge = payDataRepository.findByPayData("dependent_yearly_charge").get(0).getValue();
+            logger.info("Query for dependent yearly charge data.");
+        }
+
+        if (discountPercentage == null || discountPercentage.isNaN()) {
+            discountPercentage = payDataRepository.findByPayData("discount_rate").get(0).getValue();
+            logger.info("Query for discount rate data.");
+        }
+
+        if (paychecksPerYear == null) {
+            paychecksPerYear = payDataRepository.findByPayData("paychecks_per_year").get(0).getValue().intValue();
+            logger.info("Query for paychecks per year data.");
+        }
+    }
 
     private boolean checkDiscount(String name) {
         String[] names = name.split("\\s+");
@@ -40,35 +69,35 @@ public class DeductionService {
     }
 
     private double getPaycutPerMonth(boolean discountApplied, boolean isEmployee) {
-        double paycutPerMonth = 0.0;
-        double charge = EMPLOYEE_YEARLY_CHARGE;
+        double paycutPerMonth;
+        double charge = employeeYearlyCharge;
 
         if (!isEmployee) {
-            charge = DEPENDENT_YEARLY_CHARGE;
+            charge = dependentYearlyCharge;
         }
 
         if (discountApplied) {
-            charge *= (1 - DISCOUNT_PERCENTAGE);
+            charge *= (1 - discountPercentage);
         }
 
-        paycutPerMonth = Math.round(charge / PAYCHECKS_PER_YEAR * 100.0) / 100.0;
+        paycutPerMonth = Math.round(charge / paychecksPerYear * 100.0) / 100.0;
 
         return paycutPerMonth;
     }
 
     private double getPaycutLastMonth(double paycutPerMonth, boolean discountApplied, boolean isEmployee) {
-        double paycutLastMonth = 0.0;
-        double charge = EMPLOYEE_YEARLY_CHARGE;
+        double paycutLastMonth;
+        double charge = employeeYearlyCharge;
 
         if (!isEmployee) {
-            charge = DEPENDENT_YEARLY_CHARGE;
+            charge = dependentYearlyCharge;
         }
 
         if (discountApplied) {
-            charge *= (1 - DISCOUNT_PERCENTAGE);
+            charge *= (1 - discountPercentage);
         }
 
-        paycutLastMonth = Math.round((charge - paycutPerMonth * (PAYCHECKS_PER_YEAR - 1)) * 100.0) / 100.0;
+        paycutLastMonth = Math.round((charge - paycutPerMonth * (paychecksPerYear - 1)) * 100.0) / 100.0;
 
         return paycutLastMonth;
     }
@@ -85,8 +114,8 @@ public class DeductionService {
     }
 
     private List<DependentDeduction> calculateDependentDeduction(DeductionRequest deductionRequest) {
-        if (deductionRequest.getDependentNames() == null || deductionRequest.getDependentNames().size() == 0) {
-            return null;
+        if (deductionRequest.getDependentNames() == null || deductionRequest.getDependentNames().isEmpty()) {
+            return new ArrayList<>();
         }
 
         List<DependentDeduction> dependentDeductions = new ArrayList<>();
@@ -110,7 +139,7 @@ public class DeductionService {
         double totalDeductionLastMonth = 0.0;
 
         if (deductionResponse.getDependentDeduction() != null
-                && deductionResponse.getDependentDeduction().size() > 0) {
+                && !deductionResponse.getDependentDeduction().isEmpty()) {
             List<DependentDeduction> dependentDeductions = deductionResponse.getDependentDeduction();
             double totalDependentsDeduction = 0.0;
             double totalDependentsDeductionLastMonth = 0.0;
@@ -127,8 +156,8 @@ public class DeductionService {
         totalDeduction += deductionResponse.getEmployeeDeduction().getPaycutPerPaycheck();
         totalDeductionLastMonth += deductionResponse.getEmployeeDeduction().getPaycutLastPaycheck();
 
-        employeeDeduction.setCompensation(COMPENSATION_PER_PAYCHECK - totalDeduction);
-        employeeDeduction.setCompensationLastMonth(COMPENSATION_PER_PAYCHECK - totalDeductionLastMonth);
+        employeeDeduction.setCompensation(compensationPerPaycheck - totalDeduction);
+        employeeDeduction.setCompensationLastMonth(compensationPerPaycheck - totalDeductionLastMonth);
     }
 
     private DeductionRequest parseDeductionRequest(String employee, String dependent) {
@@ -144,6 +173,8 @@ public class DeductionService {
     }
 
     public DeductionResponse calculateDeduction(String employee, String dependent) {
+        setUpData();
+
         DeductionRequest deductionRequest = parseDeductionRequest(employee, dependent);
         logger.info("Starting deduction calculations.");
         DeductionResponse deductionResponse = new DeductionResponse();
@@ -152,8 +183,8 @@ public class DeductionService {
 
         deductionResponse.setEmployeeDeduction(employeeDeduction);
         deductionResponse.setDependentDeduction(dependentDeductions);
-        deductionResponse.setDiscountRate(Math.round(DISCOUNT_PERCENTAGE * 100) + "%");
-        deductionResponse.setCompensationPerPaycheck(COMPENSATION_PER_PAYCHECK);
+        deductionResponse.setDiscountRate(Math.round(discountPercentage * 100) + "%");
+        deductionResponse.setCompensationPerPaycheck(compensationPerPaycheck);
 
         calculateCompensations(deductionResponse);
         logger.info("Deduction calculation completed successfully.");

@@ -1,6 +1,13 @@
 spring:
   application:
     name: insurance-deduction-api
+  cloud:
+    config:
+      uri: http://localhost:5001
 
 server:
   port: 5000
+
+aws:
+  dynamodb:
+    region: us-east-1

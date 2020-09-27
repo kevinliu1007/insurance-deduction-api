@@ -21,7 +21,7 @@ public class InsuranceDeductionController {
     @Autowired
     DeductionService deductionService;
 
-    Logger logger = LoggerFactory.getLogger(InsuranceDeductionController.class);
+    private Logger logger = LoggerFactory.getLogger(InsuranceDeductionController.class);
 
     @ApiOperation("Get request to calculate the employee's income deduction from health insurance. Values change " +
             "base on the number of dependents under the employee as well.")
@@ -33,8 +33,10 @@ public class InsuranceDeductionController {
     })
     @GetMapping(value = "/deduction")
     @ResponseStatus(value = HttpStatus.OK)
-    public DeductionResponse calculateDeduction(@RequestParam String employee,
-                                                @RequestParam(required = false) String dependent) {
+    public DeductionResponse calculateDeduction(@ApiParam(value = "Employee's full name")
+                                                    @RequestParam String employee,
+                                                @ApiParam(value = "Dependent's full name(s) concatenated with commas")
+                                                    @RequestParam(required = false) String dependent) {
         long start = System.currentTimeMillis();
         DeductionResponse response = deductionService.calculateDeduction(employee, dependent);
         Link selfLink = WebMvcLinkBuilder
