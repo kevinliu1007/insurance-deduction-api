@@ -1,0 +1,6 @@
+spring:
+  cloud:
+    config:
+      uri: http://insurance-deduction-api-config-server.us-east-1.elasticbeanstalk.com
+      username: kevinliu
+      password: password

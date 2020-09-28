@@ -33,6 +33,7 @@ public class InsuranceDeductionController {
     })
     @GetMapping(value = "/deduction")
     @ResponseStatus(value = HttpStatus.OK)
+
     public DeductionResponse calculateDeduction(@ApiParam(value = "Employee's full name")
                                                     @RequestParam String employee,
                                                 @ApiParam(value = "Dependent's full name(s) concatenated with commas")
